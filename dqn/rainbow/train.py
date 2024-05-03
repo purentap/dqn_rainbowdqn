@@ -37,6 +37,7 @@ class Trainer(BaseTrainer):
             decay_range=args.n_iterations
         )
 
+
     def update(self, iteration: int) -> None:
         """ One step updating function. Update the agent in training mode.
         - clip gradient if "clip_grad" is given in args.

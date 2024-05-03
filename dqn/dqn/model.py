@@ -39,10 +39,12 @@ class DQN(BaseDQN):
         """
         states = getattr(batch, "state")
         actions = getattr(batch, "action")
+        terminal = getattr(batch, "terminal")
+
         states = torch.tensor(states)
         actions = torch.tensor(actions)
         rewards = torch.tensor(getattr(batch, "reward")).reshape(-1, )
-
+        terminal = torch.tensor(terminal)
 
         
         next_states = getattr(batch, "next_state")
@@ -51,9 +53,11 @@ class DQN(BaseDQN):
         valuenet_scores = self.valuenet(states)
         valnet_values = torch.gather(valuenet_scores, 1, actions)
 
-        targetnet_scores = self.targetnet(next_states)
-        targetnet_max_q, _ = torch.max(targetnet_scores, dim=1)
-        Q_targets = rewards +(gamma * targetnet_max_q)
+        with torch.no_grad():
+            targetnet_scores = self.targetnet(next_states)
+            targetnet_max_q, _ = torch.max(targetnet_scores, dim=1)
+        Q_targets = rewards + (gamma * targetnet_max_q * ((1-terminal).reshape(-1,)))
+
         Q_expected = valnet_values.reshape(-1,)
 
         td_loss = F.functional.mse_loss(Q_targets, Q_expected)

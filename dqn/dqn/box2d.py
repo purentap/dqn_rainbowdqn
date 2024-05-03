@@ -25,10 +25,10 @@ class ValueNet(torch.nn.Module):
         #initializing a basic architectrure taken from: will used for debugging purposes
         #https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
 
-        self.layer1 = nn.Linear(in_size, 128)
-        self.layer2 = nn.Linear(128, 128)
+        self.layer1 = nn.Linear(in_size, 64)
+        self.layer2 = nn.Linear(64, 64)
 
-        self.layer5 = nn.Linear(128, out_size)
+        self.layer5 = nn.Linear(64, out_size)
 
 
 
@@ -43,7 +43,6 @@ class ValueNet(torch.nn.Module):
         """
         x = F.relu(self.layer1(state))
         x = F.relu(self.layer2(x))
-
 
         return self.layer5(x)
 
@@ -87,7 +86,7 @@ if __name__ == "__main__":
                         help="Batch size of each update in training")
     parser.add_argument("--gamma", type=float, default=0.99,
                         help="Discount Factor")
-    parser.add_argument("--lr", type=float, default=0.001,
+    parser.add_argument("--lr", type=float, default=0.00001,
                         help="Learning Rate")
     parser.add_argument("--device", type=str, default="cpu",
                         help="Torch device")
@@ -101,7 +100,7 @@ if __name__ == "__main__":
                         help="Minimum value of the epsilon")
     parser.add_argument("--epsilon-decay", type=float, default=0.998,
                         help="Epsilon decay rate for exponential decaying")
-    parser.add_argument("--epsilon-range", type=int, default=None,
+    parser.add_argument("--epsilon-range", type=float, default=None,
                         help="Epsilon decaying range for linear decay")
     parser.add_argument("--clip-grad", action="store_true",
                         help="Gradient Clip between -1 and 1. Default: No")
@@ -120,7 +119,7 @@ if __name__ == "__main__":
                         help="Logging directory. Default: /tmp")
     parser.add_argument("--render", action="store_false",
                         help="Render evaluations")
-    parser.add_argument("--seed", type=int, default=None,
+    parser.add_argument("--seed", type=int, default=5555,
                         help="Seed value. Default: Random seed")
 
     args = parser.parse_args()

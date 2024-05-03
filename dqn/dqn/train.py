@@ -113,19 +113,22 @@ class Trainer:
         gamma = self.args.gamma
         batch_size = self.args.batch_size
         target_upt_period = self.args.target_update_period
+        training_period = self.args.start_update
         self.agent.train()
 
-        if iteration % target_upt_period == 0 : 
-            self.agent.update_target() #update the weights of the target network 
-        
-        batch = self.agent.buffer.sample(batch_size)
-        if batch != None:
-            loss = self.agent.loss(batch, gamma)
-            self.td_loss.append(loss.detach().cpu().numpy())
+        if iteration > training_period:
+            if iteration % target_upt_period == 0 : 
+                self.agent.update_target() #update the weights of the target network 
+            
+            batch = self.agent.buffer.sample(batch_size)
+            if batch != None:
+                loss = self.agent.loss(batch, gamma)
+                self.td_loss.append(loss.detach().cpu().numpy())
 
-            self.opt.zero_grad()
-            loss.backward() #not sure abt this
-            self.opt.step()       
+                self.opt.zero_grad()
+                loss.backward() #not sure abt this
+                self.opt.step() 
+            
 
     def writer(self, iteration: int) -> None:
         """ Simple writer function that feed PrintWriter with statistics 
@@ -155,22 +158,28 @@ class Trainer:
 
         """
         iters = self.args.n_iterations
+        epsilon = next(self.epsilon)
         state = torch.tensor(self.env.reset())
+        episodic_reward = 0
+        terminated = False
 
         for i in range(iters):
-            terminated = False
-            episodic_reward = 0
-            while terminated == False:
+            
+            action = self.agent.e_greedy_policy(state,epsilon)
+            observation, reward, terminated,_ = self.env.step(action)
+            episodic_reward += reward
+            #print(reward)
+            transition = self.agent.Transition(state.detach().cpu().numpy(), action, reward, observation, terminated)
+            state = torch.tensor(observation, dtype= torch.float32, device= self.device) 
+
+            yield transition
+
+            if terminated:
+                terminated = False
+                self.train_rewards.append(episodic_reward)
+
+                episodic_reward = 0
+                state = torch.tensor(self.env.reset())
                 epsilon = next(self.epsilon)
-                action = self.agent.e_greedy_policy(state,epsilon)
 
-                observation, reward, terminated,_ = self.env.step(action)
-
-                episodic_reward += reward
-                transition = self.agent.Transition(state.detach().cpu().numpy(), action, reward, observation, terminated)
-                state = torch.tensor(observation, dtype= torch.float32, device= self.device) 
-
-                yield i, transition
-
-            self.train_rewards.append(episodic_reward)
-            self.epsilon.send('restart')
+            #self.epsilon.send('restart')

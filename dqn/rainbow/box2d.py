@@ -4,7 +4,8 @@ import numpy as np
 import gym
 import argparse
 import random
-
+import torch.nn.functional as F
+import torch.nn as nn
 from dqn.rainbow.model import RainBow
 from dqn.rainbow.train import Trainer
 from dqn.rainbow.layers import HeadLayer, NoisyLinear
@@ -22,14 +23,11 @@ class ValueNet(torch.nn.Module):
 
     def __init__(self, in_size: int, out_size: int, extensions: Dict[str, Any]):
         super().__init__()
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+       
+        self.layer1 = nn.Linear(in_size, 128)
+        self.layer2 = nn.Linear(128, 128)
+
+        self.layer5 = nn.Linear(128, out_size)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         """ Run the value network with the given state
@@ -40,14 +38,11 @@ class ValueNet(torch.nn.Module):
         Returns:
             torch.Tensor: Q Value outputs
         """
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        x = F.relu(self.layer1(state))
+        x = F.relu(self.layer2(x))
+
+        return self.layer5(x)
+
 
     def reset_noise(self) -> None:
         """ Call reset_noise function of all child layers. Only used when 
@@ -104,7 +99,8 @@ def main(args: argparse.Namespace) -> None:
                     args.buffer_capacity, state_shape, state_dtype)
     optimizer = torch.optim.Adam(valuenet.parameters(), lr=args.lr)
     agent.to(args.device)
-    Trainer(args, agent, optimizer, env)()
+    print(agent.buffer.sample(1,0.3))
+    #Trainer(args, agent, optimizer, env)()
 
 
 if __name__ == "__main__":
@@ -124,7 +120,7 @@ if __name__ == "__main__":
                         help="Batch size of each update in training")
     parser.add_argument("--gamma", type=float, default=0.99,
                         help="Discount Factor")
-    parser.add_argument("--lr", type=float, default=0.001,
+    parser.add_argument("--lr", type=float, default=0.0001,
                         help="Learning rate")
     parser.add_argument("--device", type=str, default="cpu",
                         help="Torch device")

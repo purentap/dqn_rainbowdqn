@@ -91,19 +91,16 @@ class UniformBuffer(BaseBuffer):
             transition (Transition): transition to push to buffer
         """
         
-        if self.size == self.capacity:
-            self.write_index = 0
-            self.size = 0 #not sure abt this
         idx = self.write_index
         
-        _, transition  = transition
+        transition  = transition
         self.buffer.state[idx] = transition.state
         self.buffer.action[idx] = transition.action
         self.buffer.reward[idx] = transition.reward
         self.buffer.next_state[idx] = transition.next_state
         self.buffer.terminal[idx] = transition.terminal
-        self.write_index += 1
-        self.size += 1
+        self.write_index = (self.write_index + 1) % self.capacity
+        self.size = min(self.size+1, self.capacity)
         
     def sample(self, batchsize: int, *args, **kwargs) -> BaseBuffer.Transition:
         """ Uniformly sample a batch of transitions from the buffer.

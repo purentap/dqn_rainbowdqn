@@ -35,15 +35,21 @@ class PriorityBuffer(BaseBuffer):
         Args:
             transition (BaseBuffer.Transition): transition to push to buffer
         """
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        idx = self.write_index
+        
+        transition  = transition
+        self.buffer.state[idx] = transition.state
+        self.buffer.action[idx] = transition.action
+        self.buffer.reward[idx] = transition.reward
+        self.buffer.next_state[idx] = transition.next_state
+        self.buffer.terminal[idx] = transition.terminal
+
+        #absolute td of a new transition is the maximum td so far.
+        self.abs_td_errors[idx] = self.max_abs_td + self.epsilon 
+
+        self.write_index = (self.write_index + 1) % self.capacity
+        self.size = min(self.size+1, self.capacity)
+        
 
     def sample(self, batch_size: int, beta: float) -> Tuple[BaseBuffer.Transition, np.ndarray, np.ndarray]:
         """ Sample a batch of transitions based on priorities.
@@ -58,15 +64,12 @@ class PriorityBuffer(BaseBuffer):
                 - Indices of the samples (used for priority update)
                 - Importance sampling weights
         """
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        self.abs_td_errors = np.random.rand(20)
+        print(np.sum(self.abs_td_errors))
+        probabilty_dist = self.abs_td_errors / np.sum(self.abs_td_errors)
+
+        
+        #priorities = 
 
     def update_priority(self, indices: np.ndarray, td_values: np.ndarray) -> None:
         """ Update the priority td_values of given indices (returned from sample).

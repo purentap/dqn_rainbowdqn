@@ -103,11 +103,10 @@ def exponential_annealing(init_value: float, min_value: float, decay_ratio
         Generator[float, None, None]: Generator that yields decayed values at 
         every call
     """
-    yield init_value
-
     epsilon = init_value
     while True:
-        yield max(epsilon * decay_ratio, min_value)
+        yield epsilon
+        epsilon = max(epsilon * decay_ratio, min_value)
 
 class ResizeAndScalePong(gym.ObservationWrapper):
     """ Observation wrapper that is designed for Pong by Andrej Karpathy.

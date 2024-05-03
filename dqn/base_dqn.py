@@ -2,6 +2,7 @@ from typing import Tuple
 import torch
 import gym
 import numpy as np
+import time
 from copy import deepcopy
 from abc import ABC, abstractmethod
 
@@ -77,14 +78,16 @@ class BaseDQN(torch.nn.Module, ABC):
     def update_target(self) -> None:
         """ Update the target network by setting its parameters to valuenet
         parameters """
-        
+        '''
         targetnet_state_dict = self.targetnet.state_dict()
         valuenet_state_dict = self.valuenet.state_dict()
-
         for key in valuenet_state_dict:
             targetnet_state_dict[key] = valuenet_state_dict[key]
-        
+
         self.targetnet.load_state_dict(targetnet_state_dict)
+        print(self.targetnet.state_dict())
+        '''
+        self.targetnet = deepcopy(self.valuenet)
 
     def evaluate(self, eval_episode: int, env: gym.Env, device: str, render: bool = False) -> float:
         """ Agent evaluation function. Evaluate the current greedy policy for
@@ -106,7 +109,6 @@ class BaseDQN(torch.nn.Module, ABC):
         self.targetnet.to(device)
 
         total_reward = 0 
-
         for ep in range(eval_episode):
             episodic_reward = 0 #store rewards per episode
             state = env.reset() #initial state
@@ -114,9 +116,13 @@ class BaseDQN(torch.nn.Module, ABC):
             terminated= False
             while terminated == False:
                 action = self.greedy_policy(state)
-                observation, reward, terminated, _ = env.step(action)     
+                observation, reward, terminated, _ = env.step(action)
                 state = torch.tensor(observation, dtype= torch.float32, device= device) 
                 episodic_reward += reward
+
+                if render:
+                    env.render()     
+                    time.sleep(0.1)
 
             total_reward += episodic_reward
         return total_reward/eval_episode
