@@ -75,15 +75,30 @@ class RainBow(DQN):
         Returns:
             torch.Tensor: Value loss
         """
-        return super().loss(batch, gamma)
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+
+        states = getattr(batch, "state")
+        actions = getattr(batch, "action")
+        terminal = getattr(batch, "terminal")
+
+        states = torch.tensor(states)
+        actions = torch.tensor(actions)
+        rewards = torch.tensor(getattr(batch, "reward")).reshape(-1, )
+        terminal = torch.tensor(terminal)
+        next_states = getattr(batch, "next_state")
+        next_states = torch.tensor(next_states)
+
+        valuenet_scores = self.valuenet(states)
+        valnet_values = torch.gather(valuenet_scores, 1, actions)
+
+        targetnet_scores = self.targetnet(next_states)
+        targetnet_max_q, _ = torch.max(targetnet_scores, dim=1)
+        Q_targets = rewards + (gamma * targetnet_max_q * ((1-terminal).reshape(-1,)))
+        Q_expected = valnet_values.reshape(-1,)
+        
+        loss = (Q_targets - Q_expected).pow(2)
+        return loss
+        #return super().loss(batch, gamma)
+
 
 
     def expected_value(self, values: torch.Tensor) -> torch.Tensor:
@@ -139,13 +154,6 @@ class RainBow(DQN):
         Returns:
             torch.nn.Module: Q network to find target/next action
         """
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+
+        ##TODO
 

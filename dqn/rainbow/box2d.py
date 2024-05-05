@@ -98,9 +98,10 @@ def main(args: argparse.Namespace) -> None:
     agent = RainBow(valuenet, act_size, extensions,
                     args.buffer_capacity, state_shape, state_dtype)
     optimizer = torch.optim.Adam(valuenet.parameters(), lr=args.lr)
+    
     agent.to(args.device)
-    print(agent.buffer.sample(1,0.3))
-    #Trainer(args, agent, optimizer, env)()
+    
+    Trainer(args, agent, optimizer, env)()
 
 
 if __name__ == "__main__":

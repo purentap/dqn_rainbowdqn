@@ -54,15 +54,34 @@ class Trainer(BaseTrainer):
         Args:
             iteration (int): Training iteration
         """
-        return super().update(iteration)
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        use_priority_buffer = not self.args.no_prioritized
+        if use_priority_buffer:
+            gamma = self.args.gamma
+            beta = self.args.beta_init
+            batch_size = self.args.batch_size
+            target_upt_period = self.args.target_update_period
+            start_update = self.args.start_update
+
+            self.agent.train()
+
+            if iteration > start_update:
+                if iteration % target_upt_period == 0:
+                    self.agent.update_target()
+                
+                batch, indices, is_weights = self.agent.buffer.sample(batch_size, beta)
+                td_errors = self.agent.loss(batch, gamma)
+                self.agent.buffer.update_priority(indices, td_errors.detach().cpu().numpy() )
+                loss = torch.mean(td_errors * torch.tensor(is_weights))
+                self.td_loss.append(loss.detach().cpu().numpy())
+
+                self.opt.zero_grad()
+                loss.backward() 
+                self.opt.step() 
+            
+
+        else:
+            return super().update(iteration)
+
 
     def __iter__(self) -> Generator[RainBow.Transition, None, None]:
         """ n-step transition generator. Yield a transition with

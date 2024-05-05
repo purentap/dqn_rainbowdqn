@@ -64,13 +64,13 @@ class PriorityBuffer(BaseBuffer):
                 - Indices of the samples (used for priority update)
                 - Importance sampling weights
         """
-        self.abs_td_errors = np.random.rand(20)
-        print(np.sum(self.abs_td_errors))
-        probabilty_dist = self.abs_td_errors / np.sum(self.abs_td_errors)
+        probabilty_dist = (self.abs_td_errors** self.alpha) / np.sum(self.abs_td_errors**self.alpha)
+        indices = np.random.choice(len(probabilty_dist), batch_size, p = probabilty_dist, replace=False)
+        batch = self.Transition(*[x[indices] for x in self.buffer])
+        importance_sampling_weigths = ((1/batch_size) * 1/probabilty_dist[indices])** beta #not sure abt 1/batch_size
 
-        
-        #priorities = 
-
+        return (batch, indices, importance_sampling_weigths)
+    
     def update_priority(self, indices: np.ndarray, td_values: np.ndarray) -> None:
         """ Update the priority td_values of given indices (returned from sample).
         Update max_abs_td value if there exists a higher absolute td.
@@ -79,12 +79,6 @@ class PriorityBuffer(BaseBuffer):
             indices (np.ndarray): Indices of the samples
             td_values (np.ndarray): New td values
         """
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        self.abs_td_errors[indices] = td_values + self.epsilon
+        if max(td_values) > self.max_abs_td:
+            self.max_abs_td = max(td_values)
