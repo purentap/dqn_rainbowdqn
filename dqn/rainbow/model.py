@@ -28,6 +28,12 @@ class RainBow(DQN):
             )
         else:
             buffer = UniformBuffer(*buffer_args)
+        if extensions["distributional"]:
+            self.vmin = extensions["distributional"]["vmin"]
+            self.vmax = extensions["distributional"]["vmax"]
+            self.natoms = extensions["distributional"]["natoms"]
+            self.support = torch.linspace(self.vmin, self.vmax, self.natoms)
+
         super().__init__(valuenet, nact, buffer)
 
     def greedy_policy(self, state: torch.Tensor, *args) -> int:
@@ -90,7 +96,7 @@ class RainBow(DQN):
         valuenet_scores = self.valuenet(states)
         valnet_values = torch.gather(valuenet_scores, 1, actions)
 
-        targetnet_scores = self.targetnet(next_states)
+        targetnet_scores = self._next_action_network(next_states)
         targetnet_max_q, _ = torch.max(targetnet_scores, dim=1)
         Q_targets = rewards + (gamma * targetnet_max_q * ((1-terminal).reshape(-1,)))
         Q_expected = valnet_values.reshape(-1,)
@@ -112,15 +118,9 @@ class RainBow(DQN):
         Returns:
             torch.Tensor: the expected value of shape (B, A)
         """
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        expected_state_action_vals = values * self.support
+        expected_state_action_vals = torch.sum(values, dim=-1) 
+        return expected_state_action_vals        
 
 
     def distributional_loss(self, batch: BaseBuffer.Transition, gamma: float) -> torch.Tensor:
@@ -136,16 +136,27 @@ class RainBow(DQN):
         Returns:
             torch.Tensor: Value loss
         """
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        #vmin = self.extensions["distributional"]["vmin"]
+        #vmax = self.extensions["distributional"]["vmax"]
+        #natoms = self.extensions["distributional"]["natoms"]
 
+        support = self.support
+
+        states = getattr(batch, "state")
+        actions = getattr(batch, "action")
+        terminal = getattr(batch, "terminal")
+        next_states = getattr(batch, "next_state")
+
+        states = torch.tensor(states)
+        actions = torch.tensor(actions)
+        rewards = torch.tensor(getattr(batch, "reward")).reshape(-1, )
+        terminal = torch.tensor(terminal)
+        next_states = torch.tensor(next_states)
+
+        #compute target distribution
+        next_dist = self._next_action_network(next_states) * support
+        targetnet_max_q_values = torch.max(torch.sum(next_dist, -1), dim= 1)
+        
     @property
     def _next_action_network(self) -> torch.nn.Module:
         """ Return the network used for the next action calculation (Used for
@@ -155,5 +166,7 @@ class RainBow(DQN):
             torch.nn.Module: Q network to find target/next action
         """
 
-        ##TODO
+        if self.extensions["prioritized"] != False or self.extensions["distributional"] != False:
+            return self.targetnet
+        
 

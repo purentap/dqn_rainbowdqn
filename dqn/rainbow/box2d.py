@@ -27,7 +27,10 @@ class ValueNet(torch.nn.Module):
         self.layer1 = nn.Linear(in_size, 128)
         self.layer2 = nn.Linear(128, 128)
 
-        self.layer5 = nn.Linear(128, out_size)
+        if extensions["distributional"]:
+            self.layer5 = HeadLayer(in_size, out_size, extensions)
+        else: 
+            self.layer5= nn.Linear(128, out_size)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         """ Run the value network with the given state
@@ -100,7 +103,9 @@ def main(args: argparse.Namespace) -> None:
     optimizer = torch.optim.Adam(valuenet.parameters(), lr=args.lr)
     
     agent.to(args.device)
-    
+    #batch = agent.buffer.sample(5)
+    #print(batch)
+    #agent.distributional_loss(batch, 0.9)
     Trainer(args, agent, optimizer, env)()
 
 
@@ -185,7 +190,7 @@ if __name__ == "__main__":
                         help="Logging directory. Default: /tmp")
     parser.add_argument("--render", action="store_false",
                         help="Render evaluations")
-    parser.add_argument("--seed", type=int, default=None,
+    parser.add_argument("--seed", type=int, default=5555,
                         help="Seed value. Default: Random seed")
 
     args = parser.parse_args()

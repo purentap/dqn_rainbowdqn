@@ -55,28 +55,39 @@ class Trainer(BaseTrainer):
             iteration (int): Training iteration
         """
         use_priority_buffer = not self.args.no_prioritized
-        if use_priority_buffer:
-            gamma = self.args.gamma
-            beta = self.args.beta_init
-            batch_size = self.args.batch_size
-            target_upt_period = self.args.target_update_period
-            start_update = self.args.start_update
+        is_distributional = not self.args.no_dist
+        gamma = self.args.gamma
+        beta = self.args.beta_init
+        batch_size = self.args.batch_size
+        target_upt_period = self.args.target_update_period
+        start_update = self.args.start_update
 
-            self.agent.train()
+        self.agent.train()
 
-            if iteration > start_update:
-                if iteration % target_upt_period == 0:
-                    self.agent.update_target()
-                
+        if iteration > start_update:
+            if iteration % target_upt_period == 0:
+                self.agent.update_target()
+
+            if use_priority_buffer:    
                 batch, indices, is_weights = self.agent.buffer.sample(batch_size, beta)
+            else: 
+                batch = self.agent.buffer.sample(batch_size)
+            
+            if is_distributional:
+                td_error = self.agent.distributional_loss(batch,gamma)
+            else:
                 td_errors = self.agent.loss(batch, gamma)
+            if use_priority_buffer:
                 self.agent.buffer.update_priority(indices, td_errors.detach().cpu().numpy() )
                 loss = torch.mean(td_errors * torch.tensor(is_weights))
-                self.td_loss.append(loss.detach().cpu().numpy())
 
-                self.opt.zero_grad()
-                loss.backward() 
-                self.opt.step() 
+   
+
+            self.td_loss.append(loss.detach().cpu().numpy())
+
+            self.opt.zero_grad()
+            loss.backward() 
+            self.opt.step() 
             
 
         else:

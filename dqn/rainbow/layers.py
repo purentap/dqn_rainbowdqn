@@ -1,5 +1,7 @@
 from typing import Dict, Any, Optional
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import math
 
@@ -25,14 +27,14 @@ class HeadLayer(torch.nn.Module):
     def __init__(self, in_size: int, act_size: int, extensions: Dict[str, Any],
                  hidden_size: Optional[int] = None):
         super().__init__()
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        is_distributional = extensions["distributional"]
+        if is_distributional != False:
+            self.n_acts = act_size
+            self.n_atoms = extensions["distributional"]["natoms"]
+            self.v_min = extensions["distributional"]["vmin"]
+            self.v_max = extensions["distributional"]["vmax"]
+            self.output_layer = nn.Linear(128, act_size*self.n_atoms)
+
 
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         """ Run last layer with the given features 
@@ -43,15 +45,9 @@ class HeadLayer(torch.nn.Module):
         Returns:
             torch.Tensor: Q values or distributions
         """
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
-        raise NotImplementedError
+        out = self.output_layer(features)
+        out = F.softmax(out.view(-1, self.n_acts, self.n_atoms), dim=-1)
+        return out 
 
     def reset_noise(self) -> None:
         """ Call reset_noise function of all child layers. Only used when 
