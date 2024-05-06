@@ -3,7 +3,7 @@ from copy import deepcopy
 from collections import namedtuple
 import numpy as np
 import torch
-
+import torch.nn.functional as F
 from dqn.replaybuffer.uniform import UniformBuffer, BaseBuffer
 from dqn.replaybuffer.prioritized import PriorityBuffer
 from dqn.dqn.model import DQN
@@ -152,11 +152,47 @@ class RainBow(DQN):
         rewards = torch.tensor(getattr(batch, "reward")).reshape(-1, )
         terminal = torch.tensor(terminal)
         next_states = torch.tensor(next_states)
+        batch_size = states.shape[0]
+        #compute current distribution
+        current_dist = self.valuenet(states)
+        actions_expanded = actions.unsqueeze(1).expand(current_dist.shape[0], 1 , self.natoms) #expand it to B,1,N_ATOMS
+        current_dist = current_dist.gather(1, actions_expanded).squeeze(1)
 
+        dz = (self.vmax - self.vmin) / (self.natoms-1)
         #compute target distribution
         next_dist = self._next_action_network(next_states) * support
-        targetnet_max_q_values = torch.max(torch.sum(next_dist, -1), dim= 1)
+        targetnet_max_q_values, next_optimal_actions = torch.max(torch.sum(next_dist, -1), dim= 1)[0],torch.max(torch.sum(next_dist, -1), dim= 1)[1]
         
+        next_action_expanded= next_optimal_actions.unsqueeze(1).unsqueeze(1).expand(next_dist.size(0), 1, next_dist.size(2)) #next action dist in the shae of B,1,51 if action is 3 for example its like [[[3,3,3,3,3,3....]]]
+        next_dist   = next_dist.gather(1, next_action_expanded).squeeze(1) #we gather the atoms that correnponds to the distribution of next action from the next_dist 
+        
+        #get projection 
+        rewards_expanded = rewards.unsqueeze(1).expand_as(next_dist)
+        terminal_expanded = terminal.expand_as(next_dist)
+        support_expanded = support.unsqueeze(0).expand_as(next_dist)
+
+        Tz = rewards_expanded + (gamma * support_expanded * (1-terminal_expanded))
+        Tz = Tz.clamp(min = self.vmin, max = self.vmax) 
+
+        proj_dist = torch.zeros((batch_size, self.natoms))
+        b  = (Tz - self.vmin) / dz
+        ml, mu  = b.floor(), b.ceil()
+
+        #there is probably better way to do this using vectorization but i couldnt think of any
+        for i in range(batch_size):
+            ml_ = ml[i].to(dtype=torch.long)
+            mu_ = mu[i].to(dtype=torch.long)
+            b_ = b[i].to(dtype=torch.long)
+            if terminal[i].item() == 0: #if transition is not terminal
+                proj_dist[i][ml_] += next_dist[i] * (mu_ - b_)
+                proj_dist[i][mu_] += next_dist[i] * (b_ - ml_)
+            else: #if transition is terminal
+                proj_dist[i][ml_] += (mu_ - b_)
+                proj_dist[i][mu_] += (b_ - ml_)
+        
+        loss = F.kl_div( current_dist.log(), proj_dist) #input, target
+        return loss
+
     @property
     def _next_action_network(self) -> torch.nn.Module:
         """ Return the network used for the next action calculation (Used for

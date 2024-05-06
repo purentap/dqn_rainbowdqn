@@ -75,6 +75,7 @@ class Trainer(BaseTrainer):
             
             if is_distributional:
                 td_error = self.agent.distributional_loss(batch,gamma)
+                loss = td_error
             else:
                 td_errors = self.agent.loss(batch, gamma)
             if use_priority_buffer:
