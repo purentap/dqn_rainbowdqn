@@ -92,13 +92,18 @@ class RainBow(DQN):
         terminal = torch.tensor(terminal)
         next_states = getattr(batch, "next_state")
         next_states = torch.tensor(next_states)
-
         valuenet_scores = self.valuenet(states)
         valnet_values = torch.gather(valuenet_scores, 1, actions)
 
-        targetnet_scores = self._next_action_network(next_states)
-        targetnet_max_q, _ = torch.max(targetnet_scores, dim=1)
-        Q_targets = rewards + (gamma * targetnet_max_q * ((1-terminal).reshape(-1,)))
+        next_actions = self._next_action_network(next_states)
+        if self.extensions["double"]:
+            next_actions = next_actions.argmax(dim=1).unsqueeze(1)
+            next_q_value = torch.gather(self.targetnet(next_states), 1, next_actions)
+        else:
+            next_q_value, _ = torch.max(next_actions, dim=1)
+
+
+        Q_targets = rewards + (gamma * next_q_value * ((1-terminal).reshape(-1,)))
         Q_expected = valnet_values.reshape(-1,)
         
         loss = (Q_targets - Q_expected).pow(2)
@@ -201,8 +206,7 @@ class RainBow(DQN):
         Returns:
             torch.nn.Module: Q network to find target/next action
         """
-
-        if self.extensions["prioritized"] != False or self.extensions["distributional"] != False:
+        if self.extensions["double"]:
+            return self.valuenet
+        else:
             return self.targetnet
-        
-

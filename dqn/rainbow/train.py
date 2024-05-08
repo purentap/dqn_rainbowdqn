@@ -38,6 +38,7 @@ class Trainer(BaseTrainer):
         )
 
 
+
     def update(self, iteration: int) -> None:
         """ One step updating function. Update the agent in training mode.
         - clip gradient if "clip_grad" is given in args.
@@ -82,6 +83,8 @@ class Trainer(BaseTrainer):
                 self.agent.buffer.update_priority(indices, td_errors.detach().cpu().numpy() )
                 loss = torch.mean(td_errors * torch.tensor(is_weights))
 
+            else: #uniform buffer
+                loss = torch.mean(td_errors) 
    
 
             self.td_loss.append(loss.detach().cpu().numpy())
@@ -104,12 +107,48 @@ class Trainer(BaseTrainer):
             Generator[RainBow.Transition, None, None]: Transition of
             (s_t, a_t, \sum_{j=t}^{t+n}(\gamma^{j-t} r_j), done, s_{t+n})
         """
-        yield from super().__iter__()
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        n = self.args.n_steps
+        is_noisy = not self.args.no_noisy
+        if  n == 1:
+            yield from super().__iter__()
+        else: #n-step learning
+            iters = self.args.n_iterations
+            epsilon = next(self.epsilon)
+            terminated = False
+            state = torch.tensor(self.env.reset())
+            initial_state = state
+            episodic_reward = 0
+            n_buffer = deque(maxlen=n)
+            for i in range(iters):
+                n_step_reward = 0 
+                n_buffer.clear()
+                for step in range(n):
+                    if is_noisy:
+                       action = self.agent.greedy_policy(state)
+                    else: 
+                        action = self.agent.e_greedy_policy(state, epsilon)
+            
+                    observation, reward, terminated,_ = self.env.step(action)
+                    n_step_reward += reward
+                    state = torch.tensor(observation, dtype= torch.float32, device= self.device) 
+                    n_buffer.append(state)
+
+                    if len(n_buffer) == n or terminated:
+                        transition = self.agent.Transition(initial_state.detach().cpu().numpy(), action, n_step_reward, observation, terminated)
+                        yield transition
+                    if terminated:
+                        terminated = False
+                        episodic_reward += n_step_reward
+                        self.train_rewards.append(episodic_reward)
+                        state = torch.tensor(self.env.reset())
+                        initial_state = state
+                        epsilon = next(self.epsilon)
+                        episodic_reward = 0
+                        n_buffer.clear()
+
+                        break
+
+
+
+                        
+
