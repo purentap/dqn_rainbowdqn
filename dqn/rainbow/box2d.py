@@ -24,13 +24,13 @@ class ValueNet(torch.nn.Module):
     def __init__(self, in_size: int, out_size: int, extensions: Dict[str, Any]):
         super().__init__()
        
-        self.layer1 = nn.Linear(in_size, 128)
-        self.layer2 = nn.Linear(128, 128)
+        self.layer1 = nn.Linear(in_size, 64)
+        self.layer2 = nn.Linear(64, 64)
 
-        if extensions["distributional"]:
-            self.layer5 = HeadLayer(in_size, out_size, extensions)
+        if extensions["distributional"] or extensions["noisy"]:
+            self.layer5 = HeadLayer(64, out_size, extensions)
         else: 
-            self.layer5= nn.Linear(128, out_size)
+            self.layer5= nn.Linear(64, out_size)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         """ Run the value network with the given state

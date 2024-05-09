@@ -27,15 +27,17 @@ class HeadLayer(torch.nn.Module):
     def __init__(self, in_size: int, act_size: int, extensions: Dict[str, Any],
                  hidden_size: Optional[int] = None):
         super().__init__()
-        is_distributional = extensions["distributional"]
-        if is_distributional != False:
+        self.is_distributional = extensions["distributional"]
+        self.is_noisy = extensions["noisy"]
+        if self.is_distributional != False:
             self.n_acts = act_size
             self.n_atoms = extensions["distributional"]["natoms"]
             self.v_min = extensions["distributional"]["vmin"]
             self.v_max = extensions["distributional"]["vmax"]
             self.output_layer = nn.Linear(128, act_size*self.n_atoms)
 
-
+        if self.is_noisy:
+            self.output_layer= NoisyLinear(in_size, act_size, extensions["noisy"]["init_std"])
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         """ Run last layer with the given features 
 
@@ -46,7 +48,10 @@ class HeadLayer(torch.nn.Module):
             torch.Tensor: Q values or distributions
         """
         out = self.output_layer(features)
-        out = F.softmax(out.view(-1, self.n_acts, self.n_atoms), dim=-1)
+        if self.is_distributional:
+            out = F.softmax(out.view(-1, self.n_acts, self.n_atoms), dim=-1)
+        if self.is_noisy:
+            out = F.softmax(out)
         return out 
 
     def reset_noise(self) -> None:
@@ -70,26 +75,41 @@ class NoisyLinear(torch.nn.Module):
 
     def __init__(self, in_size: int, out_size: int, init_std: float):
         super().__init__()
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
 
+        self.in_size = in_size
+        self.out_size = out_size
+        self.init_std = init_std
+
+        #initialize parameters
+        #2 distinct gaussian noise parameters for weight and bias
+        self.weight_mu = nn.Parameter(torch.rand(out_size, in_size))
+        self.weight_sigma = nn.Parameter(torch.rand(out_size, in_size))
+        #self.weight_epsilon = torch.rand(out_size, in_size)
+
+        self.bias_mu = nn.Parameter(torch.rand(out_size)) 
+        self.bias_sigma = nn.Parameter(torch.rand(out_size))
+
+        #self.weight_epsilon, self.bias_epsilon = self.reset_noise()
+        
+        self.reset_noise()
     def reset_noise(self) -> None:
         """ Reset Noise of the parameters"""
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        e_i = torch.randn(self.in_size)
+        e_j = torch.randn(self.out_size)
+
+        def f_(x):
+            return x.sign().mul(x.abs().sqrt())
+        f_i = f_(e_i)
+        f_j = f_(e_j)
+        
+        weight_eps = torch.outer(f_i, f_j)
+        bias_eps = f_j
+
+        self.weight_epsilon = weight_eps.T #take transpose for broadcasting in forward() shape: (out, in)
+        self.bias_epsilon = bias_eps
+        #return weight_eps, bias_eps
+
+        #self.weight_epsilon = torch.randn()
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         """ Forward function that works stochastically in training mode
@@ -101,12 +121,8 @@ class NoisyLinear(torch.nn.Module):
         Returns:
             torch.Tensor: Layer output
         """
-        raise NotImplementedError
-        #  /$$$$$$$$ /$$$$$$ /$$       /$$
-        # | $$_____/|_  $$_/| $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$$$$     | $$  | $$      | $$
-        # | $$__/     | $$  | $$      | $$
-        # | $$        | $$  | $$      | $$
-        # | $$       /$$$$$$| $$$$$$$$| $$$$$$$$
-        # |__/      |______/|________/|________/
+        if self.training:
+            out = F.linear(input, self.weight_mu + self.weight_sigma * self.weight_epsilon, self.bias_mu + self.bias_sigma * self.bias_epsilon)
+        else: 
+            out = F.linear(input, self.weight_mu, self.bias_mu)
+        return out

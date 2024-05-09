@@ -57,6 +57,7 @@ class Trainer(BaseTrainer):
         """
         use_priority_buffer = not self.args.no_prioritized
         is_distributional = not self.args.no_dist
+        is_noisy = not self.args.no_noisy
         gamma = self.args.gamma
         beta = self.args.beta_init
         batch_size = self.args.batch_size
@@ -66,6 +67,11 @@ class Trainer(BaseTrainer):
         self.agent.train()
 
         if iteration > start_update:
+            if is_noisy:
+                #reset noise for target and value networks (according to the hw notebook)
+                self.agent.targetnet.layer5.reset_noise()
+                self.agent.valuenet.layer5.reset_noise()
+            
             if iteration % target_upt_period == 0:
                 self.agent.update_target()
 
