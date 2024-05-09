@@ -27,7 +27,7 @@ class ValueNet(torch.nn.Module):
         self.layer1 = nn.Linear(in_size, 64)
         self.layer2 = nn.Linear(64, 64)
 
-        if extensions["distributional"] or extensions["noisy"]:
+        if extensions["distributional"] or extensions["noisy"] or extensions["dueling"]:
             self.layer5 = HeadLayer(64, out_size, extensions)
         else: 
             self.layer5= nn.Linear(64, out_size)

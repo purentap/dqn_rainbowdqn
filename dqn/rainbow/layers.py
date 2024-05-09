@@ -29,6 +29,7 @@ class HeadLayer(torch.nn.Module):
         super().__init__()
         self.is_distributional = extensions["distributional"]
         self.is_noisy = extensions["noisy"]
+        self.is_dueling = extensions["dueling"]
         if self.is_distributional != False:
             self.n_acts = act_size
             self.n_atoms = extensions["distributional"]["natoms"]
@@ -38,6 +39,18 @@ class HeadLayer(torch.nn.Module):
 
         if self.is_noisy:
             self.output_layer= NoisyLinear(in_size, act_size, extensions["noisy"]["init_std"])
+
+        if self.is_dueling:
+            self.value_layer = nn.Sequential(
+                nn.Linear(64,64),
+                nn.ReLU(),
+                nn.Linear(64,1)
+            )
+            self.advantage_layer = nn.Sequential(
+                nn.Linear(64,64),
+                nn.ReLU(),
+                nn.Linear(64, act_size)
+            )
     def forward(self, features: torch.Tensor) -> torch.Tensor:
         """ Run last layer with the given features 
 
@@ -47,11 +60,17 @@ class HeadLayer(torch.nn.Module):
         Returns:
             torch.Tensor: Q values or distributions
         """
-        out = self.output_layer(features)
         if self.is_distributional:
+            out = self.output_layer(features)
             out = F.softmax(out.view(-1, self.n_acts, self.n_atoms), dim=-1)
         if self.is_noisy:
+            out = self.output_layer(features)
             out = F.softmax(out)
+        if self.is_dueling:
+            value = self.value_layer(features)
+            adv = self.advantage_layer(features)
+            q = value + adv - adv.mean(dim=-1, keepdim= True)
+            out =q
         return out 
 
     def reset_noise(self) -> None:
