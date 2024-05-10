@@ -65,7 +65,6 @@ class Trainer(BaseTrainer):
         start_update = self.args.start_update
 
         self.agent.train()
-
         if iteration > start_update:
             if is_noisy:
                 #reset noise for target and value networks (according to the hw notebook)
@@ -81,8 +80,8 @@ class Trainer(BaseTrainer):
                 batch = self.agent.buffer.sample(batch_size)
             
             if is_distributional:
-                td_error = self.agent.distributional_loss(batch,gamma)
-                loss = td_error
+                td_errors = self.agent.distributional_loss(batch,gamma)
+                loss = td_errors
             else:
                 td_errors = self.agent.loss(batch, gamma)
             if use_priority_buffer:
@@ -90,13 +89,16 @@ class Trainer(BaseTrainer):
                 loss = torch.mean(td_errors * torch.tensor(is_weights))
 
             else: #uniform buffer
-                loss = torch.mean(td_errors) 
+                if is_distributional == False:
+                    loss = torch.mean(td_errors) 
    
 
             self.td_loss.append(loss.detach().cpu().numpy())
 
             self.opt.zero_grad()
             loss.backward() 
+            if self.args.clip_grad:
+                torch.nn.utils.clip_grad_norm_(self.agent.parameters(), 1.0)
             self.opt.step() 
             
 
@@ -115,8 +117,35 @@ class Trainer(BaseTrainer):
         """
         n = self.args.n_steps
         is_noisy = not self.args.no_noisy
-        if  n == 1:
+
+        if n== 1 and is_noisy:
+            iters = self.args.n_iterations
+            state = torch.tensor(self.env.reset())
+            episodic_reward = 0
+            terminated = False
+
+            for i in range(iters):
+                
+                action = self.agent.greedy_policy(state)
+                observation, reward, terminated,_ = self.env.step(action)
+                episodic_reward += reward
+                #print(reward)
+                transition = self.agent.Transition(state.detach().cpu().numpy(), action, reward, observation, terminated)
+                state = torch.tensor(observation, dtype= torch.float32, device= self.device) 
+
+                yield transition
+
+                if terminated:
+                    terminated = False
+                    self.train_rewards.append(episodic_reward)
+
+                    episodic_reward = 0
+                    state = torch.tensor(self.env.reset())
+
+                #self.epsilon.send('restart')
+        elif  n == 1:
             yield from super().__iter__()
+
         else: #n-step learning
             iters = self.args.n_iterations
             epsilon = next(self.epsilon)

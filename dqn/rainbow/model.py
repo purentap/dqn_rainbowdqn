@@ -195,8 +195,7 @@ class RainBow(DQN):
             else: #if transition is terminal
                 proj_dist[i][ml_] += (mu_ - b_)
                 proj_dist[i][mu_] += (b_ - ml_)
-        
-        loss = F.kl_div( current_dist.log(), proj_dist) #input, target
+        loss = F.kl_div( current_dist.log(), proj_dist, reduction='batchmean') #input, target
         return loss
 
     @property

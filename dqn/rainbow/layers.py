@@ -35,7 +35,7 @@ class HeadLayer(torch.nn.Module):
             self.n_atoms = extensions["distributional"]["natoms"]
             self.v_min = extensions["distributional"]["vmin"]
             self.v_max = extensions["distributional"]["vmax"]
-            self.output_layer = nn.Linear(128, act_size*self.n_atoms)
+            self.output_layer = nn.Linear(64, act_size*self.n_atoms)
 
         if self.is_noisy:
             self.output_layer= NoisyLinear(in_size, act_size, extensions["noisy"]["init_std"])

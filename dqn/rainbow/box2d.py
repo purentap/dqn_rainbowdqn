@@ -23,7 +23,6 @@ class ValueNet(torch.nn.Module):
 
     def __init__(self, in_size: int, out_size: int, extensions: Dict[str, Any]):
         super().__init__()
-       
         self.layer1 = nn.Linear(in_size, 64)
         self.layer2 = nn.Linear(64, 64)
 

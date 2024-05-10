@@ -67,8 +67,8 @@ class PriorityBuffer(BaseBuffer):
         probabilty_dist = (self.abs_td_errors** self.alpha) / np.sum(self.abs_td_errors**self.alpha)
         indices = np.random.choice(len(probabilty_dist), batch_size, p = probabilty_dist, replace=False)
         batch = self.Transition(*[x[indices] for x in self.buffer])
-        importance_sampling_weigths = ((1/batch_size) * 1/probabilty_dist[indices])** beta #not sure abt 1/batch_size
-
+        #importance_sampling_weigths = ((1/batch_size) * (1/probabilty_dist[indices]))** beta #not sure abt 1/batch_size
+        importance_sampling_weigths = ((self.size * probabilty_dist[indices])** (-beta)) / self.max_abs_td
         return (batch, indices, importance_sampling_weigths)
     
     def update_priority(self, indices: np.ndarray, td_values: np.ndarray) -> None:
